@@ -31,9 +31,10 @@ encounters across 130 hospitals.
 
 At an operating threshold tuned for ~50% recall, the model surfaces half of all
 true 30-day readmissions for follow-up — the intended use as a triage flag that
-routes care-management resources to the highest-risk discharges. Top risk
-drivers: prior inpatient/emergency utilization, number of diagnoses and
-medications, length of stay, and age.
+routes care-management resources to the highest-risk discharges. **Prior
+inpatient utilization dominates** the model, followed by discharge disposition,
+prior emergency visits, primary diagnosis, number of diagnoses, length of stay,
+and age.
 
 ## Skills demonstrated
 
