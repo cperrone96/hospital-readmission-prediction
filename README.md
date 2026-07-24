@@ -33,8 +33,8 @@ At an operating threshold tuned for ~50% recall, the model surfaces half of all
 true 30-day readmissions for follow-up — the intended use as a triage flag that
 routes care-management resources to the highest-risk discharges. **Prior
 inpatient utilization dominates** the model, followed by discharge disposition,
-prior emergency visits, primary diagnosis, number of diagnoses, length of stay,
-and age.
+number of medications, lab procedures, length of stay, age, number of diagnoses,
+and prior emergency visits.
 
 ## Skills demonstrated
 
