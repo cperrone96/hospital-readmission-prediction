@@ -1,57 +1,19 @@
 # Predicting 30-Day Hospital Readmission
 
-Machine-learning models that flag diabetic inpatients at high risk of being
-**readmitted within 30 days** — a costly, CMS-penalized hospital quality metric.
-Built on the **Diabetes 130-US Hospitals (1999-2008)** dataset: 101,766
-encounters across 130 hospitals.
+This educational analysis estimates whether an eligible diabetic inpatient encounter is followed by a readmission within 30 days. The unit is an index encounter and the prediction timestamp is the end of that encounter (discharge). Features must be observed during the index encounter; identifiers are never model features.
 
-## Notebook
+## Design
 
-`hospital_readmission_prediction.ipynb`
+The source is the Diabetes 130-US Hospitals (1999–2008) dataset from the [UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/296/diabetes+130-us+hospitals+for+years+1999-2008), DOI [10.24432/C53919](https://doi.org/10.24432/C53919). Encounters ending in death or hospice are outside the estimand because they cannot subsequently be readmitted. `modeling.py` retains `patient_nbr` only to create a patient-disjoint 60/20/20 train/validation/test split when that source field is present. The local legacy export is de-identified and lacks those two UCI ID columns; the reproducibility gate reports this limitation rather than creating fake patient IDs. Use the authoritative UCI file for the grouped evaluation.
 
-- Frames the clinical question and defines a binary 30-day-readmission target
-- Cleans the data and removes leakage (identifiers, death/hospice discharges
-  that could not be readmitted, >40%-missing columns)
-- Builds a leakage-safe `ColumnTransformer` pipeline (median-impute + scale for
-  numerics; mode-impute + one-hot for categoricals)
-- Trains and compares **Logistic Regression, Random Forest, and Gradient
-  Boosting** with class-imbalance handling
-- Evaluates with **ROC-AUC and PR-AUC** (the right metric for an 8:1 imbalanced
-  screening problem) and tunes an **operating threshold** for a care-management
-  triage use case
-- Interprets the model to surface the top drivers of readmission risk
+The selected logistic model is compared with a training-prevalence baseline. The held-out report includes ROC-AUC, PR-AUC, Brier score, quantile calibration, cluster-bootstrap intervals, threshold trade-offs, subgroup diagnostics, and standardized-coefficient interpretation. There is no hospital identifier or clinical timestamp in this export, so hospital-aware and chronological sensitivity analyses are not supported.
 
-## Key results
-
-| Model | ROC-AUC | PR-AUC |
-|---|---|---|
-| Logistic Regression | 0.65 | 0.21 |
-| Random Forest | 0.66 | 0.21 |
-| **Gradient Boosting** | **0.67** | **0.23** |
-
-At an operating threshold tuned for ~50% recall, the model surfaces half of all
-true 30-day readmissions for follow-up — the intended use as a triage flag that
-routes care-management resources to the highest-risk discharges. **Prior
-inpatient utilization dominates** the model, followed by discharge disposition,
-number of medications, lab procedures, length of stay, age, number of diagnoses,
-and prior emergency visits.
-
-## Skills demonstrated
-
-- End-to-end supervised ML on a large, messy real-world healthcare dataset
-- Leakage-safe preprocessing pipelines (`ColumnTransformer`, `Pipeline`)
-- Class-imbalance handling and metric selection (PR-AUC, threshold tuning)
-- Model comparison, evaluation, and interpretation for a clinical decision
-
-## Data
-
-UCI Machine Learning Repository — *Diabetes 130-US Hospitals for Years
-1999-2008* (public). A compressed copy is included (`data/diabetic_data.csv.gz`)
-so the notebook runs top-to-bottom.
-
-## Run it
+## Run
 
 ```bash
-pip install -r requirements.txt
-jupyter lab
+python -m pip install -r requirements.txt
+python modeling.py
+python -m pytest -q
 ```
+
+The checked-in data checksum is recorded in `DATA_PROVENANCE.md`. The notebook is a clean-run presentation of the same analysis. This is a public, retrospective prediction exercise—not a clinical decision tool, treatment recommendation, or evidence of causal risk factors. Performance may not transport to another hospital, time period, population, or workflow; deployment would require local validation, calibration monitoring, fairness review, governance, and clinician oversight.
