@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from modeling import cluster_bootstrap, feature_contract, patient_disjoint_split, threshold_table
+from modeling import feature_contract, patient_cluster_bootstrap, patient_disjoint_split, threshold_table
 
 
 def test_group_split_is_patient_disjoint():
@@ -27,8 +27,8 @@ def test_cluster_bootstrap_is_deterministic_and_has_interval():
     y = np.array([0, 1, 0, 1, 0, 1, 0, 1])
     p = np.array([.1, .8, .2, .7, .2, .6, .3, .9])
     groups = np.array(["a", "a", "b", "b", "c", "c", "d", "d"])
-    a = cluster_bootstrap(y, p, groups, n_boot=20)
-    b = cluster_bootstrap(y, p, groups, n_boot=20)
+    a = patient_cluster_bootstrap(y, p, groups, n_boot=20)
+    b = patient_cluster_bootstrap(y, p, groups, n_boot=20)
     assert a == b
     assert 0 <= a["roc_auc"]["low_2.5"] <= a["roc_auc"]["high_97.5"] <= 1
 

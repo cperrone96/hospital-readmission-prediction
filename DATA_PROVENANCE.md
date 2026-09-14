@@ -6,4 +6,4 @@
 - Checked-in file: `data/diabetic_data.csv.gz` (the repository's legacy export; it has 48 columns and omits `encounter_id` and `patient_nbr`).
 - SHA-256: `1d2d901d5998f39ee73242d9cd259d01ae12d1a7978a6614d21d60ad8434fca9`.
 
-The analysis checks for the source identifiers and refuses to label a row-level split patient-disjoint when they are unavailable. No identifiers are recreated.
+The analysis checks for the source identifiers and sets `patient_disjoint` to false when they are unavailable. It then reports a clearly labeled IID row bootstrap rather than calling that interval patient-cluster uncertainty. No identifiers are recreated.

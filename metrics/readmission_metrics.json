@@ -43,7 +43,8 @@
     }
   },
   "selected_model": "logistic_regression",
-  "cluster_bootstrap_95pct": {
+  "uncertainty_method": "row bootstrap (IID rows; patient IDs unavailable)",
+  "uncertainty_95pct": {
     "roc_auc": {
       "low_2.5": 0.6310138063071481,
       "high_97.5": 0.6522070714345198

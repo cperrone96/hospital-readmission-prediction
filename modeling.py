@@ -98,8 +98,8 @@ def _metrics(y: pd.Series, p: np.ndarray, sample_weight=None) -> dict[str, float
     }
 
 
-def cluster_bootstrap(y: Iterable[int], p: Iterable[float], groups: Iterable[str], n_boot: int = 50, seed: int = RANDOM_STATE):
-    """Patient-cluster bootstrap intervals without pretending rows are IID."""
+def patient_cluster_bootstrap(y: Iterable[int], p: Iterable[float], groups: Iterable[str], n_boot: int = 50, seed: int = RANDOM_STATE):
+    """Patient-cluster bootstrap intervals when patient IDs are available."""
     y = np.asarray(y)
     p = np.asarray(p)
     groups = np.asarray(groups)
@@ -119,6 +119,26 @@ def cluster_bootstrap(y: Iterable[int], p: Iterable[float], groups: Iterable[str
         vals = np.array([v[name] for v in values])
         out[name] = {"low_2.5": float(np.quantile(vals, .025)), "high_97.5": float(np.quantile(vals, .975))}
     return out
+
+
+def row_bootstrap(y: Iterable[int], p: Iterable[float], n_boot: int = 50, seed: int = RANDOM_STATE):
+    """IID row bootstrap, used only when the source has no patient IDs."""
+    y, p = np.asarray(y), np.asarray(p)
+    rng = np.random.default_rng(seed)
+    values = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, len(y), size=len(y))
+        if len(np.unique(y[idx])) > 1:
+            values.append(_metrics(y[idx], p[idx]))
+    if not values:
+        raise ValueError("row bootstrap produced no valid resamples")
+    return {name: {"low_2.5": float(np.quantile([v[name] for v in values], .025)), "high_97.5": float(np.quantile([v[name] for v in values], .975))} for name in ("roc_auc", "pr_auc", "brier")}
+
+
+def bootstrap_metrics(y, p, groups=None):
+    if groups is None:
+        return row_bootstrap(y, p), "row bootstrap (IID rows; patient IDs unavailable)"
+    return patient_cluster_bootstrap(y, p, groups), "patient-cluster bootstrap"
 
 
 def threshold_table(y: Iterable[int], p: Iterable[float], thresholds: Iterable[float] | None = None) -> pd.DataFrame:
@@ -176,7 +196,8 @@ def run_analysis(data_path: str | Path, output_dir: str | Path = "metrics", incl
     importance.to_csv(out / "logistic_coefficients.csv", index=False)
     subgroup_diagnostics(y.iloc[test].reset_index(drop=True), test_p, frame.iloc[test].reset_index(drop=True)).to_csv(out / "subgroup_metrics.csv", index=False)
     disjoint = groups is not None and bool(set(groups.iloc[train]).isdisjoint(groups.iloc[val]) and set(groups.iloc[train]).isdisjoint(groups.iloc[test]) and set(groups.iloc[val]).isdisjoint(groups.iloc[test]))
-    summary = {"data": {"rows_after_eligibility": int(len(frame)), "patients": int(group_values.nunique()) if groups is not None else None, "target_prevalence": float(y.mean()), "prediction_timestamp": "end of index encounter (discharge)", "include_discharge_features": include_discharge, "hospital_or_date_sensitivity": "not supported: source has no hospital identifier or clinical timestamp"}, "split": {"train_rows": int(len(train)), "validation_rows": int(len(val)), "test_rows": int(len(test)), "patient_disjoint": disjoint, "patient_identifier_available": groups is not None}, "validation": val_metrics, "test": test_metrics, "selected_model": "logistic_regression", "cluster_bootstrap_95pct": cluster_bootstrap(y.iloc[test], test_p, group_values.iloc[test]), "thresholds": thresholds.to_dict(orient="records"), "calibration": {"bins": int(len(calibration_prob)), "brier": test_metrics["logistic_regression"]["brier"]}, "interpretation": "absolute standardized logistic coefficients aggregated to source features; associations are predictive signals, not causal effects"}
+    uncertainty, uncertainty_method = bootstrap_metrics(y.iloc[test], test_p, groups.iloc[test] if groups is not None else None)
+    summary = {"data": {"rows_after_eligibility": int(len(frame)), "patients": int(group_values.nunique()) if groups is not None else None, "target_prevalence": float(y.mean()), "prediction_timestamp": "end of index encounter (discharge)", "include_discharge_features": include_discharge, "hospital_or_date_sensitivity": "not supported: source has no hospital identifier or clinical timestamp"}, "split": {"train_rows": int(len(train)), "validation_rows": int(len(val)), "test_rows": int(len(test)), "patient_disjoint": disjoint, "patient_identifier_available": groups is not None}, "validation": val_metrics, "test": test_metrics, "selected_model": "logistic_regression", "uncertainty_method": uncertainty_method, "uncertainty_95pct": uncertainty, "thresholds": thresholds.to_dict(orient="records"), "calibration": {"bins": int(len(calibration_prob)), "brier": test_metrics["logistic_regression"]["brier"]}, "interpretation": "absolute standardized logistic coefficients aggregated to source features; associations are predictive signals, not causal effects"}
     (out / "readmission_metrics.json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary
 
