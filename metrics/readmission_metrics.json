@@ -1,115 +1,116 @@
 {
   "data": {
     "rows_after_eligibility": 99343,
-    "patients": 69990,
+    "patients": null,
     "target_prevalence": 0.11388824577474005,
     "prediction_timestamp": "end of index encounter (discharge)",
     "include_discharge_features": true,
     "hospital_or_date_sensitivity": "not supported: source has no hospital identifier or clinical timestamp"
   },
   "split": {
-    "train_rows": 59565,
-    "validation_rows": 19917,
-    "test_rows": 19861,
-    "patient_disjoint": true
+    "train_rows": 59605,
+    "validation_rows": 19869,
+    "test_rows": 19869,
+    "patient_disjoint": false,
+    "patient_identifier_available": false
   },
   "validation": {
     "prevalence_baseline": {
-      "prevalence": 0.11357132098207562,
+      "prevalence": 0.11389601892395189,
       "roc_auc": 0.5,
-      "pr_auc": 0.11357132098207562,
-      "brier": 0.10067322375449914
+      "pr_auc": 0.11389601892395189,
+      "brier": 0.10092371596506966
     },
     "logistic_regression": {
-      "prevalence": 0.11357132098207562,
-      "roc_auc": 0.6361392751982503,
-      "pr_auc": 0.20471861351325324,
-      "brier": 0.09769165519389751
+      "prevalence": 0.11389601892395189,
+      "roc_auc": 0.6373403465024101,
+      "pr_auc": 0.20839937487802934,
+      "brier": 0.09761639653101521
     }
   },
   "test": {
     "prevalence_baseline": {
-      "prevalence": 0.11338804692613665,
+      "prevalence": 0.11389601892395189,
       "roc_auc": 0.5,
-      "pr_auc": 0.11338804692613665,
-      "brier": 0.10053179519777565
+      "pr_auc": 0.11389601892395189,
+      "brier": 0.10092371596506966
     },
     "logistic_regression": {
-      "prevalence": 0.11338804692613665,
-      "roc_auc": 0.6380076260857646,
-      "pr_auc": 0.2010922711746243,
-      "brier": 0.09786330546734859
+      "prevalence": 0.11389601892395189,
+      "roc_auc": 0.6435322961897505,
+      "pr_auc": 0.20065783024379344,
+      "brier": 0.09802423065461005
     }
   },
   "selected_model": "logistic_regression",
   "cluster_bootstrap_95pct": {
     "roc_auc": {
-      "low_2.5": 0.6225061789299411,
-      "high_97.5": 0.6546667166646029
+      "low_2.5": 0.6310138063071481,
+      "high_97.5": 0.6522070714345198
     },
     "pr_auc": {
-      "low_2.5": 0.18292020248358,
-      "high_97.5": 0.22543865109242792
+      "low_2.5": 0.1903168862276961,
+      "high_97.5": 0.21592372921635572
     },
     "brier": {
-      "low_2.5": 0.09387905795737245,
-      "high_97.5": 0.10158108739111453
+      "low_2.5": 0.09493942842762616,
+      "high_97.5": 0.10108311279501707
     }
   },
   "thresholds": [
     {
       "threshold": 0.1,
-      "precision": 0.15745764588639133,
-      "recall": 0.6314387211367674,
-      "specificity": 0.5678914191606564,
-      "flag_rate": 0.4547102361411812
+      "precision": 0.15912045060658578,
+      "recall": 0.6491383119752541,
+      "specificity": 0.5590707713279564,
+      "flag_rate": 0.46464341436408474
     },
     {
       "threshold": 0.15,
-      "precision": 0.19777777777777777,
-      "recall": 0.35568383658969804,
-      "specificity": 0.8154920779147027,
-      "flag_rate": 0.20391722471174664
+      "precision": 0.19731156985117618,
+      "recall": 0.36323464427750773,
+      "specificity": 0.8100647506531864,
+      "flag_rate": 0.20967336051134933
     },
     {
       "threshold": 0.2,
-      "precision": 0.24529236868186324,
-      "recall": 0.21980461811722912,
-      "specificity": 0.913510136861832,
-      "flag_rate": 0.10160616283168018
+      "precision": 0.24807790876473604,
+      "recall": 0.2138753866548829,
+      "specificity": 0.9166761331364308,
+      "flag_rate": 0.09819316523227138
     },
     {
       "threshold": 0.25,
-      "precision": 0.29785247432306255,
-      "recall": 0.141651865008881,
-      "specificity": 0.9572945652791186,
-      "flag_rate": 0.053924777201550776
+      "precision": 0.27794263105835804,
+      "recall": 0.1241714538223597,
+      "specificity": 0.9585368624332614,
+      "flag_rate": 0.05088328552015703
     },
     {
       "threshold": 0.3,
-      "precision": 0.3270440251572327,
-      "recall": 0.09236234458259325,
-      "specificity": 0.9756942472599239,
-      "flag_rate": 0.03202255676954836
+      "precision": 0.3079584775086505,
+      "recall": 0.07865665046398586,
+      "specificity": 0.9772804725661707,
+      "flag_rate": 0.029090543057023504
     },
     {
       "threshold": 0.4,
-      "precision": 0.3563636363636364,
-      "recall": 0.043516873889875664,
-      "specificity": 0.9899483218808564,
-      "flag_rate": 0.013846231307587735
+      "precision": 0.41968911917098445,
+      "recall": 0.035793194874060984,
+      "specificity": 0.9936385323185277,
+      "flag_rate": 0.009713624238763903
     },
     {
       "threshold": 0.5,
-      "precision": 0.421875,
-      "recall": 0.023978685612788632,
-      "specificity": 0.9957976034982111,
-      "flag_rate": 0.006444791299531746
+      "precision": 0.4772727272727273,
+      "recall": 0.01855943437914273,
+      "specificity": 0.9973872543451097,
+      "flag_rate": 0.004429010015602195
     }
   ],
   "calibration": {
     "bins": 10,
-    "brier": 0.09786330546734859
+    "brier": 0.09802423065461005
   },
-  "interpretation": "permutation importance on held-out test sample; associations are predictive signals, not causal effects"
+  "interpretation": "absolute standardized logistic coefficients aggregated to source features; associations are predictive signals, not causal effects"
 }
