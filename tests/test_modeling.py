@@ -6,6 +6,7 @@ import pytest
 
 from modeling import (
     calibration_intercept_slope,
+    calibration_table,
     feature_contract,
     icd9_chapter,
     load_and_contract,
@@ -107,3 +108,12 @@ def test_committed_results_follow_the_selection_protocol():
     assert summary["split"]["patient_disjoint"] is True
     validation = summary["validation"]
     assert summary["selected_model"] == max(validation, key=lambda name: validation[name]["roc_auc"])
+
+
+def test_calibration_table_orders_predicted_and_observed_correctly():
+    rng = np.random.default_rng(3)
+    p = rng.uniform(0, 0.5, 20_000)
+    y = rng.random(20_000) < p / 2  # model over-predicts by a factor of two
+    table = calibration_table(y, p)
+    assert table["mean_predicted"].is_monotonic_increasing
+    assert (table["mean_predicted"] > table["observed_rate"]).all()

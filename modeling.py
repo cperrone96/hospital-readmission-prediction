@@ -225,6 +225,12 @@ def classification_metrics(y: Iterable[int], p: Iterable[float], sample_weight: 
     }
 
 
+def calibration_table(y: Iterable[int], p: Iterable[float], n_bins: int = 10) -> pd.DataFrame:
+    """Mean predicted risk vs observed rate in equal-count (quantile) bins."""
+    observed, predicted = calibration_curve(np.asarray(y), np.asarray(p), n_bins=n_bins, strategy="quantile")
+    return pd.DataFrame({"bin": np.arange(1, len(predicted) + 1), "mean_predicted": predicted, "observed_rate": observed})
+
+
 def calibration_intercept_slope(y: Iterable[int], p: Iterable[float]) -> dict[str, float]:
     """Logistic recalibration of the outcome on logit(p); ideal is intercept 0, slope 1."""
     p = np.clip(np.asarray(p), 1e-6, 1 - 1e-6)
@@ -348,8 +354,8 @@ def save_figures(y_test: pd.Series, test_predictions: dict[str, np.ndarray], imp
     for name, p in test_predictions.items():
         fpr, tpr, _ = roc_curve(y_test, p)
         ax_roc.plot(fpr, tpr, color=colors[name], lw=2, label=f"{labels[name]} (AUC {roc_auc_score(y_test, p):.3f})")
-        prob, obs = calibration_curve(y_test, p, n_bins=10, strategy="quantile")
-        ax_cal.plot(prob, obs, "o-", color=colors[name], lw=2, label=labels[name])
+        cal = calibration_table(y_test, p)
+        ax_cal.plot(cal["mean_predicted"], cal["observed_rate"], "o-", color=colors[name], lw=2, label=labels[name])
     ax_roc.plot([0, 1], [0, 1], "--", color="#888888", lw=1, label="Prevalence baseline (AUC 0.500)")
     ax_roc.set(xlabel="False positive rate", ylabel="True positive rate", title="ROC curve, held-out patients")
     ax_roc.legend(loc="lower right", frameon=False, fontsize=9)
@@ -412,11 +418,7 @@ def run_analysis(data_path: str | Path, output_dir: str | Path = "metrics", figu
 
     # 3. Calibration, operating points, subgroups and interpretation.
     calibration = {name: calibration_intercept_slope(y_test, p) for name, p in test_pred.items()}
-    cal_rows = []
-    for name, p in test_pred.items():
-        prob, obs = calibration_curve(y_test, p, n_bins=10, strategy="quantile")
-        cal_rows += [{"model": name, "bin": i + 1, "mean_predicted": a, "observed_rate": b} for i, (a, b) in enumerate(zip(prob, obs))]
-    pd.DataFrame(cal_rows).to_csv(out / "calibration.csv", index=False)
+    pd.concat([calibration_table(y_test, p).assign(model=name) for name, p in test_pred.items()]).to_csv(out / "calibration.csv", index=False)
     thresholds = operating_points(y_test, test_pred[selected], val_pred[selected])
     thresholds.to_csv(out / "threshold_metrics.csv", index=False)
     subgroup_diagnostics(y_test, test_pred[selected], frame.iloc[test]).to_csv(out / "subgroup_metrics.csv", index=False)
