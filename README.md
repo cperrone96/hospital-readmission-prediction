@@ -26,7 +26,7 @@ Held-out test set: 19,861 encounters from 13,998 patients who appear in neither 
 - **Clinically meaningful encoding.** Admission, discharge and source codes are categorical. ICD-9 diagnoses are grouped into the chapters used by Strack et al. (2014). "Test not performed" for HbA1c and glucose is its own category, not a missing value.
 - **Two model families, tuned on validation only.** L2-regularized logistic regression (log-transformed, standardized counts; one-hot categories) and `HistGradientBoostingClassifier` with native categorical splits. Early stopping is off because its internal holdout splits by row; the number of boosting rounds is tuned on the patient-disjoint validation set instead. The test set is scored once.
 - **Uncertainty that respects patient clustering.** A patient-cluster bootstrap gives intervals for each model and a paired interval for the difference between them.
-- **Evaluation beyond AUC.** PR-AUC for the imbalanced outcome, Brier score and log loss, calibration slope and intercept, top-k% operating points, subgroup diagnostics by gender, race and age, and permutation importance.
+- **Evaluation beyond AUC.** PR-AUC for the imbalanced outcome, Brier score, log loss, calibration slope and intercept, top-k% operating points, permutation importance and subgroup diagnostics by gender, race and age.
 
 ## Data
 
