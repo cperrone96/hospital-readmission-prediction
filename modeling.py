@@ -150,7 +150,16 @@ def build_logistic(X: pd.DataFrame, C: float) -> Pipeline:
     """L2 logistic regression: log1p + standardized counts, one-hot categories."""
     prep = ColumnTransformer(
         [
-            ("num", Pipeline([("log1p", FunctionTransformer(np.log1p, feature_names_out="one-to-one")), ("scale", StandardScaler())]), COUNT_FEATURES),
+            (
+                "num",
+                Pipeline(
+                    [
+                        ("log1p", FunctionTransformer(np.log1p, feature_names_out="one-to-one")),
+                        ("scale", StandardScaler()),
+                    ]
+                ),
+                COUNT_FEATURES,
+            ),
             (
                 "cat",
                 Pipeline(
@@ -183,7 +192,10 @@ def build_boosting(X: pd.DataFrame, learning_rate: float, max_iter: int, max_lea
                 Pipeline(
                     [
                         ("impute", SimpleImputer(strategy="constant", fill_value="missing")),
-                        ("ordinal", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=np.nan, min_frequency=50)),
+                        (
+                            "ordinal",
+                            OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=np.nan, min_frequency=50),
+                        ),
                     ]
                 ),
                 cats,
@@ -214,7 +226,9 @@ def candidate_models(X: pd.DataFrame) -> list[tuple[str, dict, Pipeline]]:
 # ------------------------------------------------------------------------ metrics
 
 
-def classification_metrics(y: Iterable[int], p: Iterable[float], sample_weight: np.ndarray | None = None) -> dict[str, float]:
+def classification_metrics(
+    y: Iterable[int], p: Iterable[float], sample_weight: np.ndarray | None = None
+) -> dict[str, float]:
     """Discrimination (ROC-AUC, PR-AUC) and probability accuracy (Brier, log loss)."""
     y, p = np.asarray(y), np.asarray(p)
     return {
@@ -228,7 +242,9 @@ def classification_metrics(y: Iterable[int], p: Iterable[float], sample_weight: 
 def calibration_table(y: Iterable[int], p: Iterable[float], n_bins: int = 10) -> pd.DataFrame:
     """Mean predicted risk vs observed rate in equal-count (quantile) bins."""
     observed, predicted = calibration_curve(np.asarray(y), np.asarray(p), n_bins=n_bins, strategy="quantile")
-    return pd.DataFrame({"bin": np.arange(1, len(predicted) + 1), "mean_predicted": predicted, "observed_rate": observed})
+    return pd.DataFrame(
+        {"bin": np.arange(1, len(predicted) + 1), "mean_predicted": predicted, "observed_rate": observed}
+    )
 
 
 def calibration_intercept_slope(y: Iterable[int], p: Iterable[float]) -> dict[str, float]:
@@ -268,7 +284,10 @@ def patient_cluster_bootstrap(
     def interval(values: Sequence[float]) -> dict[str, float]:
         return {"low_2.5": float(np.quantile(values, 0.025)), "high_97.5": float(np.quantile(values, 0.975))}
 
-    out: dict = {name: {m: interval([d[m] for d in rows]) for m in ("roc_auc", "pr_auc", "brier")} for name, rows in draws.items()}
+    out: dict = {
+        name: {m: interval([d[m] for d in rows]) for m in ("roc_auc", "pr_auc", "brier")}
+        for name, rows in draws.items()
+    }
     if paired is not None:
         first, second = paired
         diff = [b["roc_auc"] - a["roc_auc"] for a, b in zip(draws[first], draws[second])]
@@ -277,7 +296,12 @@ def patient_cluster_bootstrap(
     return out
 
 
-def operating_points(y_test: Iterable[int], p_test: Iterable[float], p_val: Iterable[float], flag_rates: Sequence[float] = (0.05, 0.10, 0.20, 0.30)) -> pd.DataFrame:
+def operating_points(
+    y_test: Iterable[int],
+    p_test: Iterable[float],
+    p_val: Iterable[float],
+    flag_rates: Sequence[float] = (0.05, 0.10, 0.20, 0.30),
+) -> pd.DataFrame:
     """Precision/recall when flagging the top-k% of encounters.
 
     The score cutoff for each flag rate is fixed on the validation partition
@@ -304,7 +328,9 @@ def operating_points(y_test: Iterable[int], p_test: Iterable[float], p_val: Iter
     return pd.DataFrame(rows)
 
 
-def subgroup_diagnostics(y: pd.Series, p: np.ndarray, frame: pd.DataFrame, columns: Sequence[str] = SUBGROUP_COLUMNS, min_n: int = 200) -> pd.DataFrame:
+def subgroup_diagnostics(
+    y: pd.Series, p: np.ndarray, frame: pd.DataFrame, columns: Sequence[str] = SUBGROUP_COLUMNS, min_n: int = 200
+) -> pd.DataFrame:
     """Discrimination and calibration-in-the-large within demographic groups."""
     y = y.reset_index(drop=True)
     frame = frame.reset_index(drop=True)
@@ -341,7 +367,14 @@ def logistic_coefficients(pipe: Pipeline) -> pd.DataFrame:
 # ----------------------------------------------------------------------- figures
 
 
-def save_figures(y_test: pd.Series, test_predictions: dict[str, np.ndarray], importance: pd.DataFrame, labels: dict[str, str], selected: str, out_dir: Path) -> None:
+def save_figures(
+    y_test: pd.Series,
+    test_predictions: dict[str, np.ndarray],
+    importance: pd.DataFrame,
+    labels: dict[str, str],
+    selected: str,
+    out_dir: Path,
+) -> None:
     """ROC + calibration panel and a permutation-importance chart."""
     import matplotlib
 
@@ -360,7 +393,11 @@ def save_figures(y_test: pd.Series, test_predictions: dict[str, np.ndarray], imp
     ax_roc.set(xlabel="False positive rate", ylabel="True positive rate", title="ROC curve, held-out patients")
     ax_roc.legend(loc="lower right", frameon=False, fontsize=9)
     ax_cal.plot([0, 1], [0, 1], "--", color="#888888", lw=1, label="Perfect calibration")
-    ax_cal.set(xlabel="Mean predicted probability (decile)", ylabel="Observed 30-day readmission rate", title="Calibration, held-out patients")
+    ax_cal.set(
+        xlabel="Mean predicted probability (decile)",
+        ylabel="Observed 30-day readmission rate",
+        title="Calibration, held-out patients",
+    )
     ax_cal.set_xlim(0, 0.35)
     ax_cal.set_ylim(0, 0.35)
     ax_cal.legend(loc="upper left", frameon=False, fontsize=9)
@@ -373,7 +410,10 @@ def save_figures(y_test: pd.Series, test_predictions: dict[str, np.ndarray], imp
     top10 = importance.head(10).iloc[::-1]
     fig, ax = plt.subplots(figsize=(7, 4.2))
     ax.barh(top10["feature"], top10["roc_auc_drop_mean"], xerr=top10["roc_auc_drop_std"], color="#d1495b", alpha=0.85)
-    ax.set(xlabel="Drop in validation ROC-AUC when the column is shuffled", title=f"Permutation importance, {labels[selected].lower()}")
+    ax.set(
+        xlabel="Drop in validation ROC-AUC when the column is shuffled",
+        title=f"Permutation importance, {labels[selected].lower()}",
+    )
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
     fig.savefig(out_dir / "permutation_importance.png", dpi=150)
@@ -383,7 +423,12 @@ def save_figures(y_test: pd.Series, test_predictions: dict[str, np.ndarray], imp
 # -------------------------------------------------------------------------- driver
 
 
-def run_analysis(data_path: str | Path, output_dir: str | Path = "metrics", figure_dir: str | Path | None = "figures", n_boot: int = N_BOOT) -> dict:
+def run_analysis(
+    data_path: str | Path,
+    output_dir: str | Path = "metrics",
+    figure_dir: str | Path | None = "figures",
+    n_boot: int = N_BOOT,
+) -> dict:
     """Fit, select on validation, score test once, and write all outputs."""
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -414,18 +459,28 @@ def run_analysis(data_path: str | Path, output_dir: str | Path = "metrics", figu
     test_metrics = {"prevalence_baseline": classification_metrics(y_test, np.full(len(test), base_rate))}
     test_metrics.update({name: classification_metrics(y_test, p) for name, p in test_pred.items()})
     other = "logistic_regression" if selected == "gradient_boosting" else "gradient_boosting"
-    uncertainty = patient_cluster_bootstrap(y_test, test_pred, groups.iloc[test], n_boot=n_boot, paired=(other, selected))
+    uncertainty = patient_cluster_bootstrap(
+        y_test, test_pred, groups.iloc[test], n_boot=n_boot, paired=(other, selected)
+    )
 
     # 3. Calibration, operating points, subgroups and interpretation.
     calibration = {name: calibration_intercept_slope(y_test, p) for name, p in test_pred.items()}
-    pd.concat([calibration_table(y_test, p).assign(model=name) for name, p in test_pred.items()]).to_csv(out / "calibration.csv", index=False)
+    pd.concat([calibration_table(y_test, p).assign(model=name) for name, p in test_pred.items()]).to_csv(
+        out / "calibration.csv", index=False
+    )
     thresholds = operating_points(y_test, test_pred[selected], val_pred[selected])
     thresholds.to_csv(out / "threshold_metrics.csv", index=False)
-    subgroup_diagnostics(y_test, test_pred[selected], frame.iloc[test]).to_csv(out / "subgroup_metrics.csv", index=False)
+    subgroup_diagnostics(y_test, test_pred[selected], frame.iloc[test]).to_csv(
+        out / "subgroup_metrics.csv", index=False
+    )
     logistic_coefficients(fitted["logistic_regression"][0]).to_csv(out / "logistic_coefficients.csv", index=False)
-    perm = permutation_importance(fitted[selected][0], X_val, y_val, scoring="roc_auc", n_repeats=5, random_state=RANDOM_STATE, n_jobs=1)
+    perm = permutation_importance(
+        fitted[selected][0], X_val, y_val, scoring="roc_auc", n_repeats=5, random_state=RANDOM_STATE, n_jobs=1
+    )
     importance = (
-        pd.DataFrame({"feature": X.columns, "roc_auc_drop_mean": perm.importances_mean, "roc_auc_drop_std": perm.importances_std})
+        pd.DataFrame(
+            {"feature": X.columns, "roc_auc_drop_mean": perm.importances_mean, "roc_auc_drop_std": perm.importances_std}
+        )
         .sort_values("roc_auc_drop_mean", ascending=False)
         .reset_index(drop=True)
     )
@@ -454,7 +509,9 @@ def run_analysis(data_path: str | Path, output_dir: str | Path = "metrics", figu
             "test_patients": len(split_groups[2]),
             "test_prevalence": float(y_test.mean()),
             "patient_disjoint": bool(
-                split_groups[0].isdisjoint(split_groups[1]) and split_groups[0].isdisjoint(split_groups[2]) and split_groups[1].isdisjoint(split_groups[2])
+                split_groups[0].isdisjoint(split_groups[1])
+                and split_groups[0].isdisjoint(split_groups[2])
+                and split_groups[1].isdisjoint(split_groups[2])
             ),
         },
         "selection_metric": "validation ROC-AUC",

@@ -21,7 +21,15 @@ def _toy_frame(n_patients: int = 60) -> pd.DataFrame:
     rows = []
     for patient in range(n_patients):
         for visit in range(rng.integers(1, 4)):
-            rows.append({"patient_nbr": f"p{patient}", "encounter_id": f"e{patient}_{visit}", "readmit_30d": int(rng.random() < 0.3), "readmitted": "NO", "x": rng.normal()})
+            rows.append(
+                {
+                    "patient_nbr": f"p{patient}",
+                    "encounter_id": f"e{patient}_{visit}",
+                    "readmit_30d": int(rng.random() < 0.3),
+                    "readmitted": "NO",
+                    "x": rng.normal(),
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -47,8 +55,20 @@ def test_feature_contract_requires_patient_ids():
 
 
 def test_loader_keeps_not_measured_as_a_category_and_drops_death_or_hospice():
-    header = "encounter_id,patient_nbr,discharge_disposition_id,max_glu_serum,diag_1,diag_2,diag_3,readmitted," + ",".join(
-        ["time_in_hospital", "num_lab_procedures", "num_procedures", "num_medications", "number_outpatient", "number_emergency", "number_inpatient", "number_diagnoses"]
+    header = (
+        "encounter_id,patient_nbr,discharge_disposition_id,max_glu_serum,diag_1,diag_2,diag_3,readmitted,"
+        + ",".join(
+            [
+                "time_in_hospital",
+                "num_lab_procedures",
+                "num_procedures",
+                "num_medications",
+                "number_outpatient",
+                "number_emergency",
+                "number_inpatient",
+                "number_diagnoses",
+            ]
+        )
     )
     body = [
         "1,10,1,None,250.83,?,V27,<30,1,1,1,1,1,1,1,1",
@@ -65,7 +85,17 @@ def test_loader_keeps_not_measured_as_a_category_and_drops_death_or_hospice():
 
 @pytest.mark.parametrize(
     "code, chapter",
-    [("250.01", "diabetes"), ("428", "circulatory"), ("785", "circulatory"), ("486", "respiratory"), ("820", "injury"), ("715", "musculoskeletal"), ("153", "neoplasms"), ("V58", "supplementary"), ("296", "other")],
+    [
+        ("250.01", "diabetes"),
+        ("428", "circulatory"),
+        ("785", "circulatory"),
+        ("486", "respiratory"),
+        ("820", "injury"),
+        ("715", "musculoskeletal"),
+        ("153", "neoplasms"),
+        ("V58", "supplementary"),
+        ("296", "other"),
+    ],
 )
 def test_icd9_chapter(code, chapter):
     assert icd9_chapter(code) == chapter
