@@ -1,117 +1,199 @@
 {
   "data": {
+    "source_rows": 101766,
     "rows_after_eligibility": 99343,
-    "patients": null,
+    "patients": 69990,
+    "share_of_patients_with_repeat_encounters": 0.2334762108872696,
+    "share_of_encounters_from_repeat_patients": 0.4599619500115761,
     "target_prevalence": 0.11388824577474005,
-    "prediction_timestamp": "end of index encounter (discharge)",
-    "include_discharge_features": true,
-    "hospital_or_date_sensitivity": "not supported: source has no hospital identifier or clinical timestamp"
+    "prediction_timestamp": "end of index encounter (discharge)"
   },
   "split": {
-    "train_rows": 59605,
-    "validation_rows": 19869,
-    "test_rows": 19869,
-    "patient_disjoint": false,
-    "patient_identifier_available": false
+    "train_rows": 59565,
+    "validation_rows": 19917,
+    "test_rows": 19861,
+    "train_patients": 41994,
+    "validation_patients": 13998,
+    "test_patients": 13998,
+    "test_prevalence": 0.11338804692613665,
+    "patient_disjoint": true
+  },
+  "selection_metric": "validation ROC-AUC",
+  "selected_hyperparameters": {
+    "logistic_regression": {
+      "C": 0.1
+    },
+    "gradient_boosting": {
+      "learning_rate": 0.03,
+      "max_iter": 400,
+      "max_leaf_nodes": 15
+    }
   },
   "validation": {
-    "prevalence_baseline": {
-      "prevalence": 0.11389601892395189,
-      "roc_auc": 0.5,
-      "pr_auc": 0.11389601892395189,
-      "brier": 0.10092371596506966
-    },
     "logistic_regression": {
-      "prevalence": 0.11389601892395189,
-      "roc_auc": 0.6373403465024101,
-      "pr_auc": 0.20839937487802934,
-      "brier": 0.09761639653101521
+      "roc_auc": 0.6613309525007881,
+      "pr_auc": 0.2149798890385925,
+      "brier": 0.09653854958584142,
+      "log_loss": 0.3360186213314911
+    },
+    "gradient_boosting": {
+      "roc_auc": 0.6750082194813101,
+      "pr_auc": 0.2373692977082314,
+      "brier": 0.0953985573380415,
+      "log_loss": 0.3319758442232048
     }
   },
+  "selected_model": "gradient_boosting",
   "test": {
     "prevalence_baseline": {
-      "prevalence": 0.11389601892395189,
       "roc_auc": 0.5,
-      "pr_auc": 0.11389601892395189,
-      "brier": 0.10092371596506966
+      "pr_auc": 0.11338804692613665,
+      "brier": 0.10053179519777565,
+      "log_loss": 0.35354371959597725
     },
     "logistic_regression": {
-      "prevalence": 0.11389601892395189,
-      "roc_auc": 0.6435322961897505,
-      "pr_auc": 0.20065783024379344,
-      "brier": 0.09802423065461005
+      "roc_auc": 0.6635685651219649,
+      "pr_auc": 0.21540674687414244,
+      "brier": 0.09630649433610197,
+      "log_loss": 0.3353214722115271
+    },
+    "gradient_boosting": {
+      "roc_auc": 0.6751578622146132,
+      "pr_auc": 0.23515636556851627,
+      "brier": 0.09523665681878662,
+      "log_loss": 0.3317211426866058
     }
   },
-  "selected_model": "logistic_regression",
-  "uncertainty_method": "row bootstrap (IID rows; patient IDs unavailable)",
+  "uncertainty_method": "patient-cluster bootstrap, 1000 resamples, percentile 95% intervals",
   "uncertainty_95pct": {
-    "roc_auc": {
-      "low_2.5": 0.6310138063071481,
-      "high_97.5": 0.6522070714345198
+    "logistic_regression": {
+      "roc_auc": {
+        "low_2.5": 0.6498123201026901,
+        "high_97.5": 0.6786464856686766
+      },
+      "pr_auc": {
+        "low_2.5": 0.1966146778006953,
+        "high_97.5": 0.23835735922941406
+      },
+      "brier": {
+        "low_2.5": 0.09256628912230319,
+        "high_97.5": 0.1003604657926635
+      }
     },
-    "pr_auc": {
-      "low_2.5": 0.1903168862276961,
-      "high_97.5": 0.21592372921635572
+    "gradient_boosting": {
+      "roc_auc": {
+        "low_2.5": 0.6617778999115794,
+        "high_97.5": 0.6914391724163638
+      },
+      "pr_auc": {
+        "low_2.5": 0.21386141507263284,
+        "high_97.5": 0.2594806753532367
+      },
+      "brier": {
+        "low_2.5": 0.09158558784839413,
+        "high_97.5": 0.09905092420214813
+      }
     },
-    "brier": {
-      "low_2.5": 0.09493942842762616,
-      "high_97.5": 0.10108311279501707
+    "roc_auc_difference_gradient_boosting_minus_logistic_regression": {
+      "low_2.5": 0.006532787759605102,
+      "high_97.5": 0.016579201810474235
+    },
+    "n_resamples": 1000
+  },
+  "calibration_intercept_slope": {
+    "logistic_regression": {
+      "intercept": -0.06033327172703418,
+      "slope": 0.9718125361492026
+    },
+    "gradient_boosting": {
+      "intercept": 0.028483176379760156,
+      "slope": 1.0175025515951495
     }
   },
-  "thresholds": [
+  "operating_points_selected_model": [
     {
-      "threshold": 0.1,
-      "precision": 0.15912045060658578,
-      "recall": 0.6491383119752541,
-      "specificity": 0.5590707713279564,
-      "flag_rate": 0.46464341436408474
+      "target_flag_rate": 0.05,
+      "score_cutoff": 0.24198988578735767,
+      "test_flag_rate": 0.05296812849302653,
+      "precision": 0.33365019011406843,
+      "recall": 0.1558614564831261,
+      "lift_over_prevalence": 2.9425516988701212
     },
     {
-      "threshold": 0.15,
-      "precision": 0.19731156985117618,
-      "recall": 0.36323464427750773,
-      "specificity": 0.8100647506531864,
-      "flag_rate": 0.20967336051134933
+      "target_flag_rate": 0.1,
+      "score_cutoff": 0.1981622207509769,
+      "test_flag_rate": 0.1057348572579427,
+      "precision": 0.2785714285714286,
+      "recall": 0.25976909413854354,
+      "lift_over_prevalence": 2.4567971327074347
     },
     {
-      "threshold": 0.2,
-      "precision": 0.24807790876473604,
-      "recall": 0.2138753866548829,
-      "specificity": 0.9166761331364308,
-      "flag_rate": 0.09819316523227138
+      "target_flag_rate": 0.2,
+      "score_cutoff": 0.1535559959572231,
+      "test_flag_rate": 0.20381652484769144,
+      "precision": 0.22776679841897232,
+      "recall": 0.40941385435168737,
+      "lift_over_prevalence": 2.0087372928060434
     },
     {
-      "threshold": 0.25,
-      "precision": 0.27794263105835804,
-      "recall": 0.1241714538223597,
-      "specificity": 0.9585368624332614,
-      "flag_rate": 0.05088328552015703
-    },
-    {
-      "threshold": 0.3,
-      "precision": 0.3079584775086505,
-      "recall": 0.07865665046398586,
-      "specificity": 0.9772804725661707,
-      "flag_rate": 0.029090543057023504
-    },
-    {
-      "threshold": 0.4,
-      "precision": 0.41968911917098445,
-      "recall": 0.035793194874060984,
-      "specificity": 0.9936385323185277,
-      "flag_rate": 0.009713624238763903
-    },
-    {
-      "threshold": 0.5,
-      "precision": 0.4772727272727273,
-      "recall": 0.01855943437914273,
-      "specificity": 0.9973872543451097,
-      "flag_rate": 0.004429010015602195
+      "target_flag_rate": 0.3,
+      "score_cutoff": 0.12808889614713684,
+      "test_flag_rate": 0.302049242233523,
+      "precision": 0.1971995332555426,
+      "recall": 0.5253108348134992,
+      "lift_over_prevalence": 1.739156274417554
     }
   ],
-  "calibration": {
-    "bins": 10,
-    "brier": 0.09802423065461005
-  },
-  "interpretation": "absolute standardized logistic coefficients aggregated to source features; associations are predictive signals, not causal effects"
+  "top_permutation_importance": [
+    {
+      "feature": "number_inpatient",
+      "roc_auc_drop_mean": 0.06782299556711417,
+      "roc_auc_drop_std": 0.003804670248053996
+    },
+    {
+      "feature": "discharge_disposition_id",
+      "roc_auc_drop_mean": 0.056302462889636605,
+      "roc_auc_drop_std": 0.0037729661487057933
+    },
+    {
+      "feature": "medical_specialty",
+      "roc_auc_drop_mean": 0.0067310653324189175,
+      "roc_auc_drop_std": 0.0018202804994061593
+    },
+    {
+      "feature": "diag_1",
+      "roc_auc_drop_mean": 0.005698658415384217,
+      "roc_auc_drop_std": 0.0006752215896742759
+    },
+    {
+      "feature": "payer_code",
+      "roc_auc_drop_mean": 0.0056824773679430285,
+      "roc_auc_drop_std": 0.0004144121317421466
+    },
+    {
+      "feature": "number_diagnoses",
+      "roc_auc_drop_mean": 0.004471285151272264,
+      "roc_auc_drop_std": 0.0006434517869848015
+    },
+    {
+      "feature": "time_in_hospital",
+      "roc_auc_drop_mean": 0.004211424340331882,
+      "roc_auc_drop_std": 0.0010057417289462635
+    },
+    {
+      "feature": "number_emergency",
+      "roc_auc_drop_mean": 0.0028550258779069804,
+      "roc_auc_drop_std": 0.0005923125600911542
+    },
+    {
+      "feature": "age",
+      "roc_auc_drop_mean": 0.002450770127212376,
+      "roc_auc_drop_std": 0.0005643985917874988
+    },
+    {
+      "feature": "admission_source_id",
+      "roc_auc_drop_mean": 0.001882269984106988,
+      "roc_auc_drop_std": 0.00041606193955278964
+    }
+  ]
 }
