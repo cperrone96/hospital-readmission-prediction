@@ -1,0 +1,14 @@
+feature,value,mean_predicted_risk,label
+number_inpatient,0.0,0.09345052982913805,
+number_inpatient,1.0,0.12043582747469524,
+number_inpatient,2.0,0.1535187329488703,
+number_inpatient,3.0,0.1770908101185039,
+number_inpatient,4.0,0.18592457915487423,
+number_inpatient,5.0,0.22867497925441185,
+number_inpatient,6.0,0.22696080976610003,
+discharge_disposition_id,1,0.09798771165766167,To home (1)
+discharge_disposition_id,3,0.14805669547460287,To SNF (3)
+discharge_disposition_id,6,0.11278427004346755,To home with home health service (6)
+discharge_disposition_id,18,0.1347115814297313,Not recorded (18)
+discharge_disposition_id,2,0.16368539349449082,To another short term hospital (2)
+discharge_disposition_id,22,0.2699083767272755,To another rehab fac including ... (22)

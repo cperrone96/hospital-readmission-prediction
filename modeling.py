@@ -51,6 +51,20 @@ COUNT_FEATURES = [
     "number_inpatient",
     "number_diagnoses",
 ]
+MEDICATION_COLUMNS = [
+    "metformin", "repaglinide", "nateglinide", "chlorpropamide", "glimepiride", "acetohexamide", "glipizide",
+    "glyburide", "tolbutamide", "pioglitazone", "rosiglitazone", "acarbose", "miglitol", "troglitazone",
+    "tolazamide", "examide", "citoglipton", "insulin", "glyburide-metformin", "glipizide-metformin",
+    "glimepiride-pioglitazone", "metformin-rosiglitazone", "metformin-pioglitazone",
+]  # fmt: skip
+# Derived at discharge from fields above: total prior-year visits and how many diabetes drugs were changed.
+ENGINEERED_FEATURES = ["prior_visits_total", "diabetes_med_changes"]
+NUMERIC_FEATURES = COUNT_FEATURES + ENGINEERED_FEATURES
+CAPACITY_RATES = (0.05, 0.10, 0.20, 0.30)
+# Triage rule in the README: intervene at predicted risk >= 20%, i.e. accept up to 4 unneeded
+# outreach calls per readmission reached (odds 0.20 / 0.80), roughly the top 10% of discharges.
+RECOMMENDED_THRESHOLD = 0.20
+NET_BENEFIT_THRESHOLDS = tuple(np.round(np.arange(0.05, 0.401, 0.01), 2))
 DIAGNOSIS_COLUMNS = ("diag_1", "diag_2", "diag_3")
 SUBGROUP_COLUMNS = ("gender", "race", "age")
 
@@ -81,6 +95,9 @@ def load_and_contract(path: str | Path) -> pd.DataFrame:
         raise ValueError(f"missing required columns: {sorted(missing)}")
     frame = frame.loc[~frame["discharge_disposition_id"].isin(DEATH_OR_HOSPICE_IDS)].copy()
     frame[COUNT_FEATURES] = frame[COUNT_FEATURES].astype(float)
+    frame["prior_visits_total"] = frame[["number_outpatient", "number_emergency", "number_inpatient"]].sum(axis=1)
+    meds = [c for c in MEDICATION_COLUMNS if c in frame]
+    frame["diabetes_med_changes"] = frame[meds].isin(["Up", "Down"]).sum(axis=1).astype(float)
     for col in DIAGNOSIS_COLUMNS:
         frame[col] = frame[col].map(icd9_chapter)
     frame[TARGET] = (frame["readmitted"] == "<30").astype(int)
@@ -143,7 +160,7 @@ def patient_disjoint_split(
 
 
 def _categorical_columns(X: pd.DataFrame) -> list[str]:
-    return [c for c in X.columns if c not in COUNT_FEATURES]
+    return [c for c in X.columns if c not in NUMERIC_FEATURES]
 
 
 def build_logistic(X: pd.DataFrame, C: float) -> Pipeline:
@@ -158,7 +175,7 @@ def build_logistic(X: pd.DataFrame, C: float) -> Pipeline:
                         ("scale", StandardScaler()),
                     ]
                 ),
-                COUNT_FEATURES,
+                NUMERIC_FEATURES,
             ),
             (
                 "cat",
@@ -186,7 +203,7 @@ def build_boosting(X: pd.DataFrame, learning_rate: float, max_iter: int, max_lea
     cats = _categorical_columns(X)
     prep = ColumnTransformer(
         [
-            ("num", "passthrough", COUNT_FEATURES),
+            ("num", "passthrough", NUMERIC_FEATURES),
             (
                 "cat",
                 Pipeline(
@@ -202,7 +219,7 @@ def build_boosting(X: pd.DataFrame, learning_rate: float, max_iter: int, max_lea
             ),
         ]
     )
-    mask = [False] * len(COUNT_FEATURES) + [True] * len(cats)
+    mask = [False] * len(NUMERIC_FEATURES) + [True] * len(cats)
     model = HistGradientBoostingClassifier(
         learning_rate=learning_rate,
         max_iter=max_iter,
@@ -328,6 +345,86 @@ def operating_points(
     return pd.DataFrame(rows)
 
 
+def net_benefit(y: Iterable[int], p: Iterable[float], threshold: float, weights: np.ndarray | None = None) -> float:
+    """Net benefit of treating everyone with risk >= ``threshold`` (Vickers and Elkin, 2006).
+
+    True positives per patient minus false positives per patient, weighted by
+    the odds at the threshold: the exchange rate between a missed readmission
+    and an unnecessary intervention that the threshold implies.
+    """
+    y, p = np.asarray(y), np.asarray(p)
+    w = np.ones(len(y)) if weights is None else np.asarray(weights, dtype=float)
+    flagged = p >= threshold
+    n = w.sum()
+    tp = w[flagged & (y == 1)].sum() / n
+    fp = w[flagged & (y == 0)].sum() / n
+    return float(tp - fp * threshold / (1 - threshold))
+
+
+def decision_curve(y: Iterable[int], predictions: dict[str, np.ndarray], thresholds: Sequence[float]) -> pd.DataFrame:
+    """Net benefit of each model, of intervening on everyone and of intervening on no one."""
+    y = np.asarray(y)
+    rows = []
+    for t in thresholds:
+        row = {"threshold": float(t), "treat_all": net_benefit(y, np.ones(len(y)), t), "treat_none": 0.0}
+        row.update({name: net_benefit(y, p, t) for name, p in predictions.items()})
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def bootstrap_decisions(
+    y: Iterable[int],
+    p: Iterable[float],
+    groups: Iterable[str],
+    cutoffs: dict[float, float],
+    thresholds: Sequence[float],
+    n_boot: int = N_BOOT,
+    seed: int = RANDOM_STATE,
+) -> dict:
+    """Patient-cluster bootstrap intervals for operating points and net-benefit gains.
+
+    ``cutoffs`` maps a target flag rate to its validation-fixed score cutoff.
+    The net-benefit gain is the model's net benefit minus the better of
+    treat-all and treat-none at the same threshold.
+    """
+    y, p = np.asarray(y), np.asarray(p)
+    codes, unique = pd.factorize(np.asarray(groups), sort=False)
+    rng = np.random.default_rng(seed)
+    ops: dict[float, dict[str, list[float]]] = {r: {"precision": [], "recall": []} for r in cutoffs}
+    gains: dict[float, list[float]] = {t: [] for t in thresholds}
+    for _ in range(n_boot):
+        w = np.bincount(rng.integers(0, len(unique), len(unique)), minlength=len(unique))[codes].astype(float)
+        positives = w[y == 1].sum()
+        for rate, cutoff in cutoffs.items():
+            flagged = p >= cutoff
+            tp = w[flagged & (y == 1)].sum()
+            ops[rate]["precision"].append(tp / max(w[flagged].sum(), 1))
+            ops[rate]["recall"].append(tp / max(positives, 1))
+        for t in thresholds:
+            default = max(net_benefit(y, np.ones(len(y)), t, w), 0.0)
+            gains[t].append(net_benefit(y, p, t, w) - default)
+
+    def interval(values: Sequence[float]) -> dict[str, float]:
+        return {"low_2.5": float(np.quantile(values, 0.025)), "high_97.5": float(np.quantile(values, 0.975))}
+
+    return {
+        "operating_points": {str(r): {k: interval(v) for k, v in m.items()} for r, m in ops.items()},
+        "net_benefit_gain": {str(t): interval(v) for t, v in gains.items()},
+    }
+
+
+def partial_dependence_curve(pipe: Pipeline, X: pd.DataFrame, column: str, values: Sequence) -> pd.DataFrame:
+    """Average predicted risk when ``column`` is set to each value for every row of ``X``."""
+    rows = []
+    for v in values:
+        X_mod = X.copy()
+        X_mod[column] = v
+        rows.append(
+            {"feature": column, "value": str(v), "mean_predicted_risk": float(pipe.predict_proba(X_mod)[:, 1].mean())}
+        )
+    return pd.DataFrame(rows)
+
+
 def subgroup_diagnostics(
     y: pd.Series, p: np.ndarray, frame: pd.DataFrame, columns: Sequence[str] = SUBGROUP_COLUMNS, min_n: int = 200
 ) -> pd.DataFrame:
@@ -368,14 +465,9 @@ def logistic_coefficients(pipe: Pipeline) -> pd.DataFrame:
 
 
 def save_figures(
-    y_test: pd.Series,
-    test_predictions: dict[str, np.ndarray],
-    importance: pd.DataFrame,
-    labels: dict[str, str],
-    selected: str,
-    out_dir: Path,
+    y_test: pd.Series, test_predictions: dict[str, np.ndarray], labels: dict[str, str], out_dir: Path
 ) -> None:
-    """ROC + calibration panel and a permutation-importance chart."""
+    """ROC and calibration curves for both models."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -407,17 +499,103 @@ def save_figures(
     fig.savefig(out_dir / "roc_calibration.png", dpi=150)
     plt.close(fig)
 
-    top10 = importance.head(10).iloc[::-1]
-    fig, ax = plt.subplots(figsize=(7, 4.2))
-    ax.barh(top10["feature"], top10["roc_auc_drop_mean"], xerr=top10["roc_auc_drop_std"], color="#d1495b", alpha=0.85)
-    ax.set(
-        xlabel="Drop in validation ROC-AUC when the column is shuffled",
-        title=f"Permutation importance, {labels[selected].lower()}",
+
+def save_decision_figure(
+    decisions: pd.DataFrame, y_test: pd.Series, p_selected: np.ndarray, label: str, path: Path
+) -> None:
+    """Hero figure: calibration of the selected model and its decision curve."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, (ax_cal, ax_nb) = plt.subplots(1, 2, figsize=(11.5, 4.6))
+    cal = calibration_table(y_test, p_selected)
+    ax_cal.plot([0, 0.35], [0, 0.35], "--", color="#888888", lw=1, label="Perfect calibration")
+    ax_cal.plot(cal["mean_predicted"], cal["observed_rate"], "o-", color="#d1495b", lw=2, label=f"{label} (deciles)")
+    ax_cal.set(xlim=(0, 0.35), ylim=(0, 0.35), xlabel="Predicted 30-day readmission risk",
+               ylabel="Observed readmission rate", title="Predicted risk is accurate")  # fmt: skip
+    ax_cal.legend(loc="upper left", frameon=False, fontsize=9)
+    ax_nb.plot(decisions.threshold, decisions["gradient_boosting"] * 100, color="#d1495b", lw=2.2, label=label)
+    ax_nb.plot(
+        decisions.threshold,
+        decisions["logistic_regression"] * 100,
+        color="#2a6fb0",
+        lw=1.5,
+        label="Logistic regression",
     )
-    ax.spines[["top", "right"]].set_visible(False)
+    ax_nb.plot(
+        decisions.threshold,
+        decisions["treat_all"] * 100,
+        color="#555555",
+        lw=1.2,
+        ls=":",
+        label="Intervene on everyone",
+    )
+    ax_nb.axhline(0, color="#888888", lw=1, ls="--", label="Intervene on no one")
+    ax_nb.axvline(RECOMMENDED_THRESHOLD, color="#222222", lw=1, ls="-.", label=f"Recommended threshold ({RECOMMENDED_THRESHOLD:.0%})")  # fmt: skip
+    ax_nb.set(xlim=(0.05, 0.40), ylim=(-1, 3.5), xlabel="Risk threshold for intervening (implied cost/benefit trade-off)",
+              ylabel="Net benefit (readmissions caught per 100 discharges, net)", title="Decision curve, held-out patients")  # fmt: skip
+    ax_nb.legend(frameon=False, fontsize=9, loc="upper right")
+    for ax in (ax_cal, ax_nb):
+        ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
-    fig.savefig(out_dir / "permutation_importance.png", dpi=150)
+    fig.savefig(path, dpi=150)
     plt.close(fig)
+
+
+def save_driver_figure(importance: pd.DataFrame, pdp: pd.DataFrame, label: str, path: Path) -> None:
+    """Permutation importance and partial dependence for the two strongest predictors."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, (ax_i, ax_n, ax_d) = plt.subplots(1, 3, figsize=(15, 4.6), gridspec_kw={"width_ratios": [1.1, 0.8, 1.3]})
+    top = importance.head(10).iloc[::-1]
+    ax_i.barh(top["feature"], top["roc_auc_drop_mean"], xerr=top["roc_auc_drop_std"], color="#d1495b", alpha=0.85)
+    ax_i.set(xlabel="Drop in validation ROC-AUC when shuffled", title=f"Permutation importance, {label.lower()}")
+    inpatient = pdp.loc[pdp.feature == "number_inpatient"]
+    ax_n.plot(
+        inpatient["value"].astype(float).astype(int),
+        inpatient["mean_predicted_risk"] * 100,
+        "o-",
+        color="#d1495b",
+        lw=2,
+    )
+    ax_n.set(xlabel="Inpatient stays in the prior year", ylabel="Average predicted risk (%)",
+             title="Partial dependence: prior admissions")  # fmt: skip
+    dispo = pdp.loc[pdp.feature == "discharge_disposition_id"].sort_values("mean_predicted_risk")
+    ax_d.barh(dispo["label"], dispo["mean_predicted_risk"] * 100, color="#d1495b", alpha=0.85)
+    ax_d.set(xlabel="Average predicted risk (%)", title="Partial dependence: discharge")
+    for ax in (ax_i, ax_n, ax_d):
+        ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+
+
+def short_label(text: str, width: int = 34) -> str:
+    """Compact label for a discharge-disposition description."""
+    if text == "NULL":
+        return "Not recorded"
+    text = text.replace("Discharged/transferred to ", "To ").replace("Discharged to ", "To ")
+    return text if len(text) <= width else text[: width - 3] + "..."
+
+
+def code_labels(path: str | Path, section: str) -> dict[str, str]:
+    """Descriptions for one code table in the UCI IDS_mapping.csv file."""
+    labels, active = {}, False
+    for line in Path(path).read_text().splitlines():
+        if line.startswith(f"{section},"):
+            active = True
+            continue
+        if active:
+            if not line.strip(",").strip():
+                break
+            code, _, text = line.partition(",")
+            labels[code.strip()] = text.strip().strip('"')
+    return labels
 
 
 # -------------------------------------------------------------------------- driver
@@ -468,7 +646,7 @@ def run_analysis(
     pd.concat([calibration_table(y_test, p).assign(model=name) for name, p in test_pred.items()]).to_csv(
         out / "calibration.csv", index=False
     )
-    thresholds = operating_points(y_test, test_pred[selected], val_pred[selected])
+    thresholds = operating_points(y_test, test_pred[selected], val_pred[selected], CAPACITY_RATES)
     thresholds.to_csv(out / "threshold_metrics.csv", index=False)
     subgroup_diagnostics(y_test, test_pred[selected], frame.iloc[test]).to_csv(
         out / "subgroup_metrics.csv", index=False
@@ -486,8 +664,40 @@ def run_analysis(
     )
     importance.to_csv(out / "permutation_importance.csv", index=False)
     labels = {"logistic_regression": "Logistic regression", "gradient_boosting": "Gradient boosting"}
+
+    # 4. Decision analysis: net benefit across intervention thresholds, with patient-cluster intervals.
+    decisions = decision_curve(y_test, test_pred, NET_BENEFIT_THRESHOLDS)
+    decisions.to_csv(out / "decision_curve.csv", index=False)
+    cutoffs = dict(zip(thresholds["target_flag_rate"], thresholds["score_cutoff"]))
+    decision_ci = bootstrap_decisions(
+        y_test, test_pred[selected], groups.iloc[test], cutoffs, (0.10, 0.15, 0.20, 0.25, 0.30), n_boot=n_boot
+    )
+    sel_curve = decisions.set_index("threshold")
+    beats_defaults = sel_curve[selected] > sel_curve[["treat_all", "treat_none"]].max(axis=1)
+    useful_thresholds = [float(t) for t in sel_curve.index[beats_defaults]]
+
+    # 5. Partial dependence for the two strongest predictors (validation patients).
+    dispositions = code_labels(Path(data_path).with_name("IDS_mapping.csv"), "discharge_disposition_id")
+    top_codes = X_train["discharge_disposition_id"].value_counts().head(6).index.tolist()
+    pdp = pd.concat(
+        [
+            partial_dependence_curve(
+                fitted[selected][0], X_val, "number_inpatient", [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+            ),
+            partial_dependence_curve(fitted[selected][0], X_val, "discharge_disposition_id", top_codes).assign(
+                label=lambda d: d["value"].map(lambda c: f"{short_label(dispositions.get(c, c))} ({c})")
+            ),
+        ],
+        ignore_index=True,
+    )
+    pdp.to_csv(out / "partial_dependence.csv", index=False)
     if figure_dir is not None:
-        save_figures(y_test, test_pred, importance, labels, selected, Path(figure_dir))
+        figure_dir = Path(figure_dir)
+        save_figures(y_test, test_pred, labels, figure_dir)
+        save_decision_figure(
+            decisions, y_test, test_pred[selected], labels[selected], figure_dir / "decision_curve.png"
+        )
+        save_driver_figure(importance, pdp, labels[selected], figure_dir / "drivers.png")
 
     split_groups = [set(groups.iloc[idx]) for idx in (train, val, test)]
     summary = {
@@ -524,6 +734,18 @@ def run_analysis(
         "calibration_intercept_slope": calibration,
         "operating_points_selected_model": thresholds.to_dict(orient="records"),
         "top_permutation_importance": importance.head(10).to_dict(orient="records"),
+        "decision_analysis": {
+            "net_benefit_at": {
+                str(t): {
+                    k: float(sel_curve.loc[t, k]) for k in ("gradient_boosting", "logistic_regression", "treat_all")
+                }
+                for t in (0.10, 0.15, 0.20, 0.25, 0.30)
+            },
+            "thresholds_where_selected_beats_treat_all_and_none": (
+                [min(useful_thresholds), max(useful_thresholds)] if useful_thresholds else None
+            ),
+            "bootstrap_95pct": decision_ci,
+        },
     }
     (out / "readmission_metrics.json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary

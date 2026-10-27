@@ -147,3 +147,24 @@ def test_calibration_table_orders_predicted_and_observed_correctly():
     table = calibration_table(y, p)
     assert table["mean_predicted"].is_monotonic_increasing
     assert (table["mean_predicted"] > table["observed_rate"]).all()
+
+
+def test_net_benefit_matches_hand_calculation_and_treat_all():
+    from modeling import decision_curve, net_benefit
+
+    y = np.array([1, 1, 0, 0, 0, 0, 0, 0, 0, 0])
+    p = np.array([0.9, 0.3, 0.4, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+    # threshold 0.25: flagged = first three; TP = 2, FP = 1; NB = 2/10 - 1/10 * (0.25 / 0.75)
+    assert net_benefit(y, p, 0.25) == pytest.approx(0.2 - 0.1 / 3)
+    curve = decision_curve(y, {"model": p}, [0.25])
+    assert curve.loc[0, "treat_all"] == pytest.approx(0.2 - 0.8 / 3)
+    assert curve.loc[0, "treat_none"] == 0.0
+
+
+def test_engineered_features_are_derived_from_discharge_fields():
+    header = "encounter_id,patient_nbr,discharge_disposition_id,diag_1,diag_2,diag_3,readmitted,metformin,insulin," + ",".join(
+        ["time_in_hospital", "num_lab_procedures", "num_procedures", "num_medications", "number_outpatient", "number_emergency", "number_inpatient", "number_diagnoses"]
+    )  # fmt: skip
+    frame = load_and_contract(io.StringIO(header + "\n1,10,1,250,401,428,NO,Up,Down,1,1,1,1,2,3,4,5"))
+    assert frame.loc[0, "prior_visits_total"] == 9
+    assert frame.loc[0, "diabetes_med_changes"] == 2
